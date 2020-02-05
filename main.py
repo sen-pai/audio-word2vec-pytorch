@@ -71,7 +71,7 @@ def run():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str)
-    parser.add_argument('--epochs', default=100, type=int)
+    parser.add_argument('--epochs', default=5, type=int)
     parser.add_argument('--train_size', default=28000, type=int)
     parser.add_argument('--eval_size', default=2600, type=int)
     FLAGS, _ = parser.parse_known_args()

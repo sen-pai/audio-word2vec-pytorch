@@ -41,70 +41,58 @@ class Seq2Seq(nn.Module):
 
         batch_size = x.size()[0]
         init_state = self.encoder.init_hidden(batch_size)
-        # print("x size", x.size())
+        
         encoder_outputs, encoder_state = self.encoder.forward(x, init_state, x_len)
 
-        assert encoder_outputs.size()[0] == self.batch_size, encoder_outputs.size()
-        assert encoder_outputs.size()[-1] == self.decoder.hidden_size
+        # assert encoder_outputs.size()[0] == self.batch_size, encoder_outputs.size()
+        # assert encoder_outputs.size()[-1] == self.decoder.hidden_size
 
         # return encoder_outputs, encoder_state.squeeze(0)
         return encoder_outputs, encoder_state
 
-    def decode(self, encoder_outputs, encoder_hidden, targets, targets_lengths, input_lengths):
+    def decode(self, encoder_outputs, encoder_hidden, targets, targets_lengths):
         """
         Args:
-            encoder_outputs: (B, T, H)
-            encoder_hidden: (B, H)
-            targets: (B, L)
-            targets_lengths: (B)
-            input_lengths: (B)
+            encoder_outputs: (Batch Size, Max Lenght, Hidden Dimension)
+            encoder_hidden: (Bi-directional* Num Layers, Batch Size, Hidden Dimension)
+            targets: (Batch Size, Max Lenght, Num Channels)
+            targets_lengths: (Batch Size)
+
         Vars:
-            decoder_input: (B)
-            decoder_context: (B, H)
-            hidden_state: (B, H)
-            attention_weights: (B, T)
+            decoder_input: (Batch Size, Num Channels)
+            hidden_state = encoder_hidden
+
         Outputs:
-            alignments: (L, T, B)
             logits: (B*L, V)
             labels: (B*L)
         """
-        # print('encoder_outputs shape', encoder_outputs.size())
-        # print('targets', targets)
-        # print('targets_lengths', targets_lengths)
+        # print('targets shape', targets.shape)
+
+        # print('targets len shape', targets_lengths.shape)
         batch_size = encoder_outputs.size()[0]
         max_length = targets.size()[1]
-        # decoder_attns = torch.zeros(batch_size, MAX_LENGTH, MAX_LENGTH)
         # decoder_input = Variable(torch.LongTensor([self.SOS] * batch_size)).squeeze(-1)
 
 
         decoder_input = Variable(torch.FloatTensor([self.SOS] * batch_size))
-        # print("decoder_input shape", decoder_input.shape)
-        # decoder_context = encoder_outputs.transpose(1, 0)[-1]
+        # print('decoder_input shape', decoder_input.shape)
         # decoder_hidden = encoder_hidden
         hidden = encoder_hidden.squeeze(0)
         
-        # print("decoder_hidden shape", hidden.shape)
-
-        # alignments = Variable(torch.zeros(max_length, encoder_outputs.size(1), batch_size))
         logits = Variable(torch.zeros(max_length, batch_size, self.decoder.output_size))
 
         if self.gpu:
             decoder_input = decoder_input.cuda()
-            # decoder_context = decoder_context.cuda()
             logits = logits.cuda()
 
         for t in range(max_length):
 
-            # The decoder accepts, at each time step t :
-            # - an input, [B]
-            # - a context, [B, H]
+            # The decoder accepts in forward, at each time step t :
+            # - an input, [Batch Size, Num Channels]
             # - an hidden state, [B, H]
             # - encoder outputs, [B, T, H]
 
-            # print('batch_size shape',self.batch_size)
-            # print('decoder_input', decoder_input.size())
-            # print('decoder_hidden', hidden.size())
-            # print('self.decoder.hidden_size', self.decoder.hidden_size)
+            
             # check_size(decoder_input, self.batch_size)
             # check_size(decoder_hidden, self.batch_size, self.decoder.hidden_size)
 
@@ -114,11 +102,11 @@ class Seq2Seq(nn.Module):
             # - an hidden state, [B, H]
             # - weights, [B, T]
 
-            # print('decoder_hidden', hidden.size())
+            # print('hidden shape in loop', hidden.shape)
+
+            
             outputs, hidden = self.decoder.forward(input= decoder_input, hidden= hidden)
-            # print("this is outputs",outputs)
-            # print("outputs shape", outputs.shape)
-            # print(outputs[0])
+            
             logits[t] = outputs
 
             use_teacher_forcing = random.random() > self.sampling_prob
@@ -135,12 +123,12 @@ class Seq2Seq(nn.Module):
                 # TODO Instead of taking the direct one-hot prediction from the previous time step as the original paper
                 # does, we thought it is better to feed the distribution vector as it encodes more information about
                 # prediction from previous step and could reduce bias.
-                # print('entered topi')
+                
                 # topv, topi = outputs.data.topk(1)
                 decoder_input = outputs.squeeze(0).detach()
-                # print("topi shape", decoder_input.shape)
+                
                 # decoder_input =  decoder_input.unsqueeze(-1).detach()
-                # print("topi shape after", decoder_input.shape)
+                
 
 
         # labels = targets.contiguous().view(-1)
@@ -157,13 +145,13 @@ class Seq2Seq(nn.Module):
 
         mask_value = 0
 
-        # print("mask_value", mask_value)
         # print("logits before mask_3d", logits)
+
+        #mask_3d add 0 where input was padded. 
         logits = mask_3d(logits.transpose(1, 0), targets_lengths, mask_value)
         # print("logits after mask_3d", logits)
         # logits = logits.contiguous().view(-1, self.vocab_size)
-        # print('logits look like', logits)
-        # print("logits original shape", logits.shape)
+        
         # logits = logits.contiguous().view(-1)
         logits = logits.contiguous()
         # print('logits', logits.shape)
@@ -209,7 +197,7 @@ class Seq2Seq(nn.Module):
         # print('encoder_state shape', encoder_state.size())
         # logits, labels, alignments = self.decode(encoder_out, encoder_state, y, y_len, x_len)
 
-        logits, labels = self.decode(encoder_out, encoder_state, y, y_len, x_len)
+        logits, labels = self.decode(encoder_out, encoder_state, y, y_len)
         # print('logits shape', logits.shape)
         # print('labels shape', labels.shape)
         # print('alignments shape', alignments.shape)
