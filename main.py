@@ -6,6 +6,7 @@ import os
 from training import train, evaluate
 from models.seq2seq import Seq2Seq
 from torch.utils import data
+from torch.utils.tensorboard import SummaryWriter
 from utils.data_generator import ToyDataset, pad_collate, Toy_Numbers
 
 
@@ -23,6 +24,8 @@ def run():
 
     config["gpu"] = torch.cuda.is_available()
 
+    writer = SummaryWriter('experiments/finally')
+
 #     dataset = ToyDataset(5, 15)
 #     eval_dataset = ToyDataset(5, 15, type='eval')
     dataset = Toy_Numbers(10)
@@ -36,6 +39,12 @@ def run():
     # Models
     model = Seq2Seq(config)
     model = model.float()
+
+    # dataiter = iter(train_loader)
+    # sample_input= dataiter.next()
+
+    # writer.add_graph(model, sample_input)
+    # writer.close()
 
     if USE_CUDA:
         model = model.cuda()
@@ -62,8 +71,13 @@ def run():
         run_state = (epoch, FLAGS.epochs, FLAGS.train_size)
 
         # Train needs to return model and optimizer, otherwise the model keeps restarting from zero at every epoch
-        model, optimizer = train(model, optimizer, train_loader, run_state)
-        evaluate(model, eval_loader)
+        model, optimizer= train(model, optimizer, train_loader, run_state, writer)
+        # print("losses", l_list)
+        # for i in l_list:
+        #     # print(i)
+        #     writer.add_scalar('Loss/train',i)
+        evaluate(model, eval_loader, writer)
+
 
         # TODO implement save models function
 
@@ -71,7 +85,7 @@ def run():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str)
-    parser.add_argument('--epochs', default=5, type=int)
+    parser.add_argument('--epochs', default=100, type=int)
     parser.add_argument('--train_size', default=28000, type=int)
     parser.add_argument('--eval_size', default=2600, type=int)
     FLAGS, _ = parser.parse_known_args()

@@ -40,44 +40,45 @@ class Seq2Seq(nn.Module):
     def encode(self, x, x_len):
 
         batch_size = x.size()[0]
-        init_state = self.encoder.init_hidden(batch_size)
+        init_state, init_cell = self.encoder.init_hidden_lstm(batch_size)
         
-        encoder_outputs, encoder_state = self.encoder.forward(x, init_state, x_len)
+        encoder_outputs, encoder_hidden_state, encoder_cell_state = self.encoder.forward(x, init_state, init_cell, x_len)
 
         # assert encoder_outputs.size()[0] == self.batch_size, encoder_outputs.size()
         # assert encoder_outputs.size()[-1] == self.decoder.hidden_size
 
         # return encoder_outputs, encoder_state.squeeze(0)
-        return encoder_outputs, encoder_state
+        return encoder_outputs, encoder_hidden_state, encoder_cell_state
 
-    def decode(self, encoder_outputs, encoder_hidden, targets, targets_lengths):
+    def decode(self, encoder_outputs, encoder_hidden, encoder_cell, targets, targets_lengths):
         """
         Args:
             encoder_outputs: (Batch Size, Max Lenght, Hidden Dimension)
             encoder_hidden: (Bi-directional* Num Layers, Batch Size, Hidden Dimension)
+            encoder_cell: (Bi-directional* Num Layers, Batch Size, Hidden Dimension)
+            
             targets: (Batch Size, Max Lenght, Num Channels)
             targets_lengths: (Batch Size)
 
         Vars:
             decoder_input: (Batch Size, Num Channels)
             hidden_state = encoder_hidden
+            cell_state = encoder_cell
 
         Outputs:
             logits: (B*L, V)
             labels: (B*L)
         """
-        # print('targets shape', targets.shape)
 
-        # print('targets len shape', targets_lengths.shape)
         batch_size = encoder_outputs.size()[0]
         max_length = targets.size()[1]
         # decoder_input = Variable(torch.LongTensor([self.SOS] * batch_size)).squeeze(-1)
 
 
         decoder_input = Variable(torch.FloatTensor([self.SOS] * batch_size))
-        # print('decoder_input shape', decoder_input.shape)
-        # decoder_hidden = encoder_hidden
+
         hidden = encoder_hidden.squeeze(0)
+        cell = encoder_cell.squeeze(0)
         
         logits = Variable(torch.zeros(max_length, batch_size, self.decoder.output_size))
 
@@ -102,10 +103,8 @@ class Seq2Seq(nn.Module):
             # - an hidden state, [B, H]
             # - weights, [B, T]
 
-            # print('hidden shape in loop', hidden.shape)
-
             
-            outputs, hidden = self.decoder.forward(input= decoder_input, hidden= hidden)
+            outputs, hidden, cell = self.decoder.forward(input= decoder_input, hidden= hidden, cell = cell)
             
             logits[t] = outputs
 
@@ -145,7 +144,6 @@ class Seq2Seq(nn.Module):
 
         mask_value = 0
 
-        # print("logits before mask_3d", logits)
 
         #mask_3d add 0 where input was padded. 
         logits = mask_3d(logits.transpose(1, 0), targets_lengths, mask_value)
@@ -178,11 +176,6 @@ class Seq2Seq(nn.Module):
 
     def step(self, batch):
         x, y, x_len, y_len = batch
-        # print("This is x", x)
-        # print("This is y", y)
-        # print("y shape", y.shape)
-        # print("x_len", x_len)
-        # print("y_len", y_len)
         
         if self.gpu:
             x = x.cuda()
@@ -191,19 +184,48 @@ class Seq2Seq(nn.Module):
             y_len = y_len.cuda()
 
        
-        encoder_out, encoder_state = self.encode(x, x_len)
+        encoder_out, encoder_hidden_state, encoder_cell_state = self.encode(x, x_len)
         # print("done encoding")
         # print('encoder_out shape', encoder_out.size())
         # print('encoder_state shape', encoder_state.size())
+
         # logits, labels, alignments = self.decode(encoder_out, encoder_state, y, y_len, x_len)
 
-        logits, labels = self.decode(encoder_out, encoder_state, y, y_len)
-        # print('logits shape', logits.shape)
-        # print('labels shape', labels.shape)
-        # print('alignments shape', alignments.shape)
+        logits, labels = self.decode(encoder_out, encoder_hidden_state, encoder_cell_state, y, y_len)
+
+        # labels, logits = self.remove_zeros(labels, logits)
 
         # return logits, labels, alignments
         return logits, labels
+
+    @staticmethod
+    def remove_zeros(targets, predictions):
+    #because of variable lenghts, targets are padded with 0's to make the lenght = max_lenght
+    #no use while calculating the loss.
+
+    #flatten both to 1D array
+        targets = targets.view(-1)
+        predictions = predictions.view(-1)
+
+        updated_targets = []
+        updated_predictions = []
+
+        for i in range(0,targets.shape[0]):
+            if targets[i] != 0:
+                updated_targets.append(targets[i])
+                updated_predictions.append(predictions[i])
+
+        updated_targets = torch.FloatTensor(updated_targets)
+        updated_predictions = torch.FloatTensor(updated_predictions)
+
+        # updated_targets = torch.from_numpy(updated_targets).float()
+        # updated_predictions = torch.from_numpy(updated_predictions).float()
+        
+        print('this is targets', targets.shape)
+        print('updated_targets', updated_targets.shape)
+
+        return updated_targets, updated_predictions
+
 
     def loss(self, batch):
         # logits, labels, alignments = self.step(batch)

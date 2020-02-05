@@ -1,24 +1,23 @@
 import torch
 import numpy as np
-import editdistance
 import matplotlib.pyplot as plt
 import tqdm
 
 
-def train(model, optimizer, train_loader, state):
+def train(model, optimizer, train_loader, state, writer):
     epoch, n_epochs, train_steps = state
 
     losses = []
-    cers = []
 
-    # t = tqdm.tqdm(total=min(len(train_loader), train_steps))
     t = tqdm.tqdm(train_loader)
     model.train()
+    
 
     for batch in t:
         t.set_description("Epoch {:.0f}/{:.0f} (train={})".format(epoch, n_epochs, model.training))
         loss, _, _ = model.loss(batch)
         losses.append(loss.item())
+        writer.add_scalar('Loss/train', loss.item())
         # Reset gradients
         optimizer.zero_grad()
         # Compute gradients
@@ -26,13 +25,14 @@ def train(model, optimizer, train_loader, state):
         # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2)
         optimizer.step()
         t.set_postfix(loss='{:05.3f}'.format(loss.item()), avg_loss='{:05.3f}'.format(np.mean(losses)))
+        
         t.update()
 
     return model, optimizer
     # print(" End of training:  loss={:05.3f} , cer={:03.1f}".format(np.mean(losses), np.mean(cers)*100))
 
 
-def evaluate(model, eval_loader):
+def evaluate(model, eval_loader, writer):
 
     losses = []
     accs = []
@@ -45,7 +45,10 @@ def evaluate(model, eval_loader):
             t.set_description(" Evaluating... (train={})".format(model.training))
             loss, logits, labels = model.loss(batch)
             preds = logits.detach().cpu().numpy()
-            print("preds", preds)
+            writer.add_scalar('Loss/eval', loss.item())
+            preds = torch.FloatTensor(preds)
+            # writer.add_scalars('visualise/eval', preds)
+            # print("preds", preds)
 
             # acc = np.sum(np.argmax(preds, -1) == labels.detach().cpu().numpy()) / len(preds)
             # acc = 100 * editdistance.eval(np.argmax(preds, -1), labels.detach().cpu().numpy()) / len(preds)
@@ -53,6 +56,7 @@ def evaluate(model, eval_loader):
             # accs.append(acc)
             # t.set_postfix(avg_acc='{:05.3f}'.format(np.mean(accs)), avg_loss='{:05.3f}'.format(np.mean(losses)))
             t.set_postfix( avg_loss='{:05.3f}'.format(np.mean(losses)))
+            
             t.update()
         # align = alignments.detach().cpu().numpy()[:, :, 0]
 
