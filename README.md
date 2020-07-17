@@ -1,8 +1,11 @@
-# Sequence-to-sequence in Pytorch
+# Reproducing Audio-Word2Vec
+Sequence-to-sequence neural network.
+Try out the ToyDataset to understand how it works.
+Feed MFCC's instead to train Audio-Word2Vec.
 
-Sequence-to-sequence neural network with attention. You can play with a toy dataset to test different configurations.
-The toy dataset consists of batched (input, target) pairs, where the target is the reversed input.
 
+Adapted from https://github.com/b-etienne/Seq2seq-PyTorch/
+Check it out if you are looking for a good repo on Seq2Seq
 ## Original papers
 
 * https://arxiv.org/abs/1409.0473
@@ -41,16 +44,3 @@ You can tune the following parameters:
 * the number of recurrent layers in the decoder
 * the decoder dropout
 * the bidirectionality of the decoder
-* batch size
-* the type of attention used
-etc...
-
-## Results
-
-Here is a comparison of the Levenshtein distance for the Luong example vs Seq2seq example.
-
-![Attention accuracy](https://github.com/b-etienne/Seq2seq-PyTorch/blob/master/experiments/acc_attention.png)
-
-We can also check the weights during evaluation
-
-![Attention accuracy](https://github.com/b-etienne/Seq2seq-PyTorch/blob/master/experiments/att2.PNG)
